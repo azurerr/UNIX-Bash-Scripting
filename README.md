@@ -7,3 +7,4 @@
 * If there is no argument specified, then the current directory will be the default
 * If there is more than one argument specified, there will be an error message and the script terminated (exit status 1) with no full-screen display
 
+![unix_full](https://user-images.githubusercontent.com/41781756/129760145-f92eb10c-38b6-4ae9-b9ba-b79265320173.PNG)
