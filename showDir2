@@ -1,0 +1,196 @@
+# Assignment 3
+# Course: UNX510
+# Family Name: Lee
+# Given Name: Jihyun
+# Student Number: 141859181
+# Login name: jlee592
+# Professor: Shahdad Shariatmadari
+# Due Date: Aug 2, 2021
+#
+# I declare that the attached assignment is my own work in
+# accordance with Seneca Academic Policy. No part of this
+# assignment has been copied manually or electronically from
+# any other source (including web sites) or distributed to
+# other students.
+
+trap 'stty icanon icrnl echo; rm /tmp/showDir2.temp.$$; exit 0' INT
+# Check if the number of argument is 1
+case $# in
+0) dir=. ;;
+1) dir=$1 ;;
+*)
+   echo "Usage: showDir2 [ dir-name ]" >&2
+   exit 1
+   ;;
+esac
+# Check if the argument is a correct directory name
+if [ ! -d $dir ]; then
+   echo "showDir2: $dir is not a valid directory name" >&2
+   exit 1
+fi
+cd $dir
+
+# Calculate the number of directories we need to handle
+dirNum=$(echo $PWD | sed 's/[^/]//g' | awk '{ print length }')
+dirNum=$((dirNum + 1))
+
+# Extract the directories name to handle
+directories=$(pwd | tr "/" " ")
+directories="/ $directories" # To add the root
+declare -a arrayDir          # To declare an array to save every directory's absolute path
+
+# Initialise the cursor location to calculate
+maxRow=$((dirNum + 1)) # the row of the last directory
+maxCol=26              #the location of the first character of the directory name
+screenWidth=
+cursor=$maxRow # row Number
+colNum=$maxCol
+#filecolumn=$(head -1 /tmp/showDir2.tmp.$$ | sed 's/ [^ ]*$//' | wc -c)
+redraw=yes
+
+stty -icanon min 1 time 0 -icrnl -echo
+tput smkx # set "keypad send mode", needed for cursor keys
+while true; do
+   if [ $redraw = yes ]; then
+      clear
+      printf "  Owner   Group   Other   filename \n"
+      printf "  -----   -----   -----   -------- \n"
+      currentRow=1
+      current=
+      arrayNum=0
+      for dir in $(echo $directories); do
+         current="$current/$dir"
+         arrayDir[arrayNum]=$current # save the current category to the array
+         arrayNum=$((arrayNum + 1))
+         currentRow=$((currentRow + 1))
+         cd $current
+         line=$(ls -d -al $current | cut -d' ' -f1)
+         # if the permission for others is x, turn on the highlight
+         if echo $line | grep -qs "\-$"; then
+            tput smso
+         fi
+         permission1=$(echo $line | cut -c1-4 | sed 's/./& /g')
+         permission2=$(echo $line | cut -c5-7 | sed 's/./& /g')
+         permission3=$(echo $line | cut -c8-10 | sed 's/./& /g')
+         theLine=$(printf "$permission1  $permission2  $permission3  $dir" | cut -c1-$(tput cols))
+         #If the cursor located to current directory, display the detail
+         if [ $cursor = $currentRow ]; then
+            printf "%s\n" "$theLine"
+            tput rmso
+            info=$(ls -dl $current)
+            links=$(echo $info | cut -d' ' -f2)
+            owner=$(echo $info | cut -d' ' -f3)
+            group=$(echo $info | cut -d' ' -f4)
+            size=$(echo $info | cut -d' ' -f5)
+            modified=$(echo $info | cut -d' ' -f6-8)
+            printf "Links: $links Owner: $owner Group: $group Size: $size Modified: $modified\n"
+         else
+            printf "%s\n" "$theLine"
+            tput rmso
+         fi
+      done
+      tput cup $maxRow $colNum
+      printf "\n\n\n\n"
+      printf "Valid keys: k (up), j (down): move between Dir_Names\n"
+      printf "            h (left), l (right): move between permission\n"
+      printf "            r, w, x, -: change permission\n"
+      printf "q: quit\n"
+      redraw=no
+   fi
+   tput cup $cursor $colNum
+   command=$(dd bs=3 count=1 2>/dev/null)
+   case $command in
+   k) # up
+      if [ $cursor -gt 2 ]; then
+         cursor=$((cursor - 1))
+         redraw=yes
+      fi ;;
+   j) # down
+      if [ $cursor -lt $maxRow ]; then
+         cursor=$((cursor + 1))
+         redraw=yes
+      fi ;;
+
+   h) # left - between permission
+      if [ $colNum = $maxCol -o $colNum = 10 -o $colNum = 18 ]; then
+         colNum=$((colNum - 4))
+         redraw=yes
+      elif [ $colNum -gt 2 ]; then
+         colNum=$((colNum - 2))
+         redraw=yes
+      fi ;;
+   l) # right - between permission
+      if [ $colNum = 6 -o $colNum = 14 -o $colNum = 22 ]; then
+         colNum=$((colNum + 4))
+         redraw=yes
+      elif [ $colNum -lt $maxCol ]; then
+         colNum=$((colNum + 2))
+         redraw=yes
+      fi ;;
+
+   r) # change permission
+      index=$((cursor - 2))
+      targetDir=${arrayDir[$index]}
+      if [ $colNum = 2 ]; then
+         chmod u+r $targetDir
+      elif [ $colNum = 10 ]; then
+         chmod g+r $targetDir
+      elif [ $colNum = 18 ]; then
+         chmod o+r $targetDir
+      fi
+      redraw=yes
+      ;;
+   w) # change permission
+      index=$((cursor - 2))
+      targetDir=${arrayDir[$index]}
+      if [ $colNum = 4 ]; then
+         chmod u+w $targetDir
+      elif [ $colNum = 12 ]; then
+         chmod g+w $targetDir
+      elif [ $colNum = 20 ]; then
+         chmod o+w $targetDir
+      fi
+      redraw=yes
+      ;;
+   x) # change permission
+      index=$((cursor - 2))
+      targetDir=${arrayDir[$index]}
+      if [ $colNum = 6 ]; then
+         chmod u+x $targetDir
+      elif [ $colNum = 14 ]; then
+         chmod g+x $targetDir
+      elif [ $colNum = 22 ]; then
+         chmod o+x $targetDir
+      fi
+      redraw=yes
+      ;;
+   -) # change permission
+      index=$((cursor - 2))
+      targetDir=${arrayDir[$index]}
+      # Set object
+      if [ $colNum -lt 9 ]; then
+         object="u"
+      elif [ $colNum -gt 17 ]; then
+         object="o"
+      else
+         object="g"
+      fi
+      # Set permission
+      if [ $colNum = 2 -o $colNum = 10 -o $colNum = 18 ]; then
+         permission="-r"
+      elif [ $colNum = 4 -o $colNum = 12 -o $colNum = 20 ]; then
+         permission="-w"
+      elif [ $colNum = 6 -o $colNum = 14 -o $colNum = 22 ]; then
+         permission="-x"
+      fi
+      chmod $object$permission $targetDir
+      redraw=yes
+      ;;
+
+   q) # rm /tmp/cdir.temp.$$
+      stty icanon icrnl echo
+      tput cup 15 0
+      exit 0
+      ;;
+   esac
+done
